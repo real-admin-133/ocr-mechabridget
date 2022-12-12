@@ -1,0 +1,4 @@
+venv/
+.version
+config.local.ini
+runtime.log
