@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Setup key environment variables.
 THIS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
