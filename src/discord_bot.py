@@ -17,15 +17,19 @@ from stonk_sheet_updater import StonkSheetUpdater
 
 class TipProcessingCog(disc_commands.Cog):
    DEFAULT_REACTION_EMOJI = '✅'
+   DEFAULT_ERR_REACTION_EMOJI = '❌'
 
    def __init__(self, bot: disc_commands.Bot, log: logging.Logger, allowed_channels: list[str],
-                mention_roles: list[str], reaction_emoji: int, history_messages_limit: int) -> None:
+                mention_roles: list[str], reaction_emoji: int, err_reaction_emoji: int,
+                history_messages_limit: int) -> None:
       self.bot = bot
       self._log = log
       self._allowed_channels = allowed_channels
       self._mention_roles = mention_roles
       self._reaction_emoji = reaction_emoji
+      self._err_reaction_emoji = err_reaction_emoji
       self._cached_reaction_emoji = None
+      self._cached_err_reaction_emoji = None
       self._history_messages_limit = history_messages_limit
       self._failed_urls = {channel: [] for channel in allowed_channels}
       self._tip_recognizer = TipRecognizer()
@@ -72,8 +76,9 @@ class TipProcessingCog(disc_commands.Cog):
       content = self._get_content_for_reply(tips, failed_urls, message.guild)
       if not content:
          return
+      emoji = self._get_err_reaction_emoji() if failed_urls else self._get_reaction_emoji()
       await message.reply('>>> ' + content)
-      await message.add_reaction(self._get_reaction_emoji())
+      await message.add_reaction(emoji)
 
    def _should_respond_to_command(self, ctx: disc_commands.Context) -> bool:
       if ctx.channel.name not in self._allowed_channels:
@@ -155,6 +160,12 @@ class TipProcessingCog(disc_commands.Cog):
          self._cached_reaction_emoji = maybe_emoji or self.DEFAULT_REACTION_EMOJI
       return self._cached_reaction_emoji
 
+   def _get_err_reaction_emoji(self) -> Union[discord.Emoji, str]:
+      if not self._cached_err_reaction_emoji:
+         maybe_emoji = discord.utils.get(self.bot.emojis, id=self._err_reaction_emoji)
+         self._cached_err_reaction_emoji = maybe_emoji or self.DEFAULT_ERR_REACTION_EMOJI
+      return self._cached_err_reaction_emoji
+
 
 class DiscordBot(object):
    CONFIG_SECTION = 'discord-bot'
@@ -185,6 +196,8 @@ class DiscordBot(object):
       tip_posting_channels = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'tip_posting_channels'))
       tip_mention_roles = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'failed_tip_mention_roles'))
       tip_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_reaction_emoji')
+      tip_err_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_err_reaction_emoji')
       history_messages_limit = config.getint(self.CONFIG_SECTION, 'history_messages_limit')
       await self._bot.add_cog(TipProcessingCog(
-         self._bot, self._log, tip_posting_channels, tip_mention_roles, tip_reaction_emoji, history_messages_limit))
+         self._bot, self._log, tip_posting_channels, tip_mention_roles, tip_reaction_emoji, tip_err_reaction_emoji,
+         history_messages_limit))
