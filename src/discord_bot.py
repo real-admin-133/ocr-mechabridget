@@ -13,6 +13,47 @@ from logging_utils import logger_factory
 from basic_utils import BasicUtils
 from tip_recognizer import Tip, TipRecognizer
 from stonk_sheet_updater import StonkSheetUpdater
+from discord_paginator import Page, PageGenerator, PageNavigator
+
+
+class FailedURLsPages(PageGenerator):
+   EMBED_COLOR = discord.Color.red()
+
+   def __init__(self, failed_urls: list[str], urls_per_page: int) -> None:
+      super().__init__()
+      # Make a copy since original list will be cleared afterward.
+      self._failed_urls = [url for url in failed_urls]
+      self._urls_per_page = urls_per_page
+      self._pages = []
+      self._make_pages()
+
+   def get_pages(self) -> list[Page]:
+      return self._pages
+
+   def _make_pages(self) -> None:
+      if self._failed_urls:
+         self._pages = self._make_failed_urls_pages()
+      else:
+         self._pages = [self._make_default_page()]
+
+   def _make_failed_urls_pages(self) -> list[Page]:
+      pages = []
+      failed_urls_for_pages = BasicUtils.split_list_to_chunks(
+         self._failed_urls, self._urls_per_page)
+      page_count = len(failed_urls_for_pages)
+      for idx, urls in enumerate(failed_urls_for_pages):
+         page_number = idx + 1
+         embed_content = '\n'.join(['<{}>'.format(url) for url in urls])
+         embed = discord.Embed(description=embed_content, color=self.EMBED_COLOR)
+         embed.set_footer(text='Displayed {} in {} URLs. Page {}/{}'.format(
+            len(urls), len(self._failed_urls), page_number, page_count))
+         pages.append(Page(embed=embed))
+      return pages
+
+   def _make_default_page(self) -> Page:
+      embed = discord.Embed(description='No new failed image so far.', color=self.EMBED_COLOR)
+      embed.set_footer(text='Page 1/1')
+      return Page(embed=embed)
 
 
 class TipProcessingCog(disc_commands.Cog):
@@ -21,7 +62,7 @@ class TipProcessingCog(disc_commands.Cog):
 
    def __init__(self, bot: disc_commands.Bot, log: logging.Logger, allowed_channels: list[str],
                 mention_roles: list[str], reaction_emoji: int, err_reaction_emoji: int,
-                history_messages_limit: int) -> None:
+                history_messages_limit: int, failed_urls_per_page: int) -> None:
       self.bot = bot
       self._log = log
       self._allowed_channels = allowed_channels
@@ -31,6 +72,7 @@ class TipProcessingCog(disc_commands.Cog):
       self._cached_reaction_emoji = None
       self._cached_err_reaction_emoji = None
       self._history_messages_limit = history_messages_limit
+      self._failed_urls_per_page = failed_urls_per_page
       self._failed_urls = {channel: [] for channel in allowed_channels}
       self._tip_recognizer = TipRecognizer()
       self._sheet_updater = StonkSheetUpdater()
@@ -40,11 +82,9 @@ class TipProcessingCog(disc_commands.Cog):
       if not self._should_respond_to_command(ctx):
          return
       channel_name = ctx.channel.name
-      content = '\n'.join(['<{}>'.format(url) for url in self._failed_urls[channel_name]])
+      content = FailedURLsPages(self._failed_urls[channel_name], self._failed_urls_per_page)
       self._failed_urls[channel_name].clear()
-      if not content:
-         content = 'No new failed image so far'
-      await ctx.channel.send('>>> ' + content)
+      await PageNavigator(ctx, content.get_pages(), timeout=1800).run()
 
    @disc_commands.Cog.listener()
    async def on_ready(self) -> None:
@@ -198,6 +238,7 @@ class DiscordBot(object):
       tip_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_reaction_emoji')
       tip_err_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_err_reaction_emoji')
       history_messages_limit = config.getint(self.CONFIG_SECTION, 'history_messages_limit')
+      failed_urls_per_page = config.getint(self.CONFIG_SECTION, 'failed_urls_per_page')
       await self._bot.add_cog(TipProcessingCog(
          self._bot, self._log, tip_posting_channels, tip_mention_roles, tip_reaction_emoji, tip_err_reaction_emoji,
-         history_messages_limit))
+         history_messages_limit, failed_urls_per_page))
