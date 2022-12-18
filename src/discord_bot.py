@@ -59,6 +59,7 @@ class FailedURLsPages(PageGenerator):
 class TipProcessingCog(disc_commands.Cog):
    DEFAULT_REACTION_EMOJI = '✅'
    DEFAULT_ERR_REACTION_EMOJI = '❌'
+   EMBED_COLOR = discord.Color.blue()
 
    def __init__(self, bot: disc_commands.Bot, log: logging.Logger, allowed_channels: list[str],
                 mention_roles: list[str], reaction_emoji: int, err_reaction_emoji: int,
@@ -108,16 +109,19 @@ class TipProcessingCog(disc_commands.Cog):
       self._log.info('Processing message, id={}, channel="{}", user="{}"'.format(
          message.id, message.channel.name, message.author.name))
       tips, failed_urls = self._process_attachments(message.attachments)
+      if (len(tips) + len(failed_urls)) == 0:
+         # Nothing to do.
+         return
+      # Add new tips to stonk sheet.
       for tip in tips:
          self._sheet_updater.update_sheet(tip)
+      # Add new failed tip images to the channel's pile.
       if failed_urls:
          self._failed_urls[message.channel.name].extend(failed_urls)
       # Post reply and react to message.
-      content = self._get_content_for_reply(tips, failed_urls, message.guild)
-      if not content:
-         return
+      embed = self._get_embed_for_reply(tips, failed_urls, message.guild)
       emoji = self._get_err_reaction_emoji() if failed_urls else self._get_reaction_emoji()
-      await message.reply('>>> ' + content)
+      await message.reply(embed=embed)
       await message.add_reaction(emoji)
 
    def _should_respond_to_command(self, ctx: disc_commands.Context) -> bool:
@@ -178,13 +182,17 @@ class TipProcessingCog(disc_commands.Cog):
             'Unknown error occurred while fetching image, url="{}", exception="{}"'.format(url, repr(e)))
          return None
 
-   def _get_content_for_reply(self, tips: list[Tip], failed_urls: list[str], guild: discord.Guild) -> str:
-      tip_lines = [tip.to_string() for tip in tips]
-      failed_url_lines = ['Cannot read <{}>'.format(url) for url in failed_urls]
-      content = '\n'.join(tip_lines + failed_url_lines)
-      if failed_url_lines:
-         content += '\n' + ''.join([role.mention for role in self._get_mention_roles(guild)])
-      return content
+   def _get_embed_for_reply(self, tips: list[Tip], failed_urls: list[str], guild: discord.Guild) -> discord.Embed:
+      embed = discord.Embed(color=self.EMBED_COLOR)
+      if tips:
+         lines = [tip.to_string() for tip in tips]
+         embed.add_field(name='SUCCESS', value='\n'.join(lines), inline=False)
+      if failed_urls:
+         lines = ['Cannot read <{}>'.format(url) for url in failed_urls]
+         lines.append('')  # Separation line.
+         lines.append(''.join([role.mention for role in self._get_mention_roles(guild)]))
+         embed.add_field(name='FAILED', value='\n'.join(lines), inline=False)
+      return embed
 
    def _get_mention_roles(self, guild: discord.Guild) -> list[discord.Role]:
       roles = []
