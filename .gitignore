@@ -1,4 +1,5 @@
 venv/
 .version
+.saved
 config.local.ini
 runtime.log

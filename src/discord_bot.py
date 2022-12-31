@@ -10,6 +10,7 @@ from discord.ext import commands as disc_commands
 
 from config_loader import config
 from logging_utils import logger_factory
+from simple_data_saver import simple_saver
 from basic_utils import BasicUtils
 from tip_recognizer import Tip, TipRecognizer
 from stonk_sheet_updater import StonkSheetUpdater
@@ -57,6 +58,7 @@ class FailedURLsPages(PageGenerator):
 
 
 class TipProcessingCog(disc_commands.Cog):
+   FAILED_URLS_SAVE_KEY = 'failed-urls'
    DEFAULT_REACTION_EMOJI = '✅'
    DEFAULT_ERR_REACTION_EMOJI = '❌'
    EMBED_COLOR = discord.Color.blue()
@@ -74,7 +76,8 @@ class TipProcessingCog(disc_commands.Cog):
       self._cached_err_reaction_emoji = None
       self._history_messages_limit = history_messages_limit
       self._failed_urls_per_page = failed_urls_per_page
-      self._failed_urls = {channel: [] for channel in allowed_channels}
+      self._failed_urls = simple_saver.load_key(
+         self.FAILED_URLS_SAVE_KEY, {channel: [] for channel in allowed_channels})
       self._tip_recognizer = TipRecognizer()
       self._sheet_updater = StonkSheetUpdater()
 
@@ -85,6 +88,7 @@ class TipProcessingCog(disc_commands.Cog):
       channel_name = ctx.channel.name
       content = FailedURLsPages(self._failed_urls[channel_name], self._failed_urls_per_page)
       self._failed_urls[channel_name].clear()
+      simple_saver.save_key(self.FAILED_URLS_SAVE_KEY, self._failed_urls)
       await PageNavigator(ctx, content.get_pages(), timeout=1800).run()
 
    @disc_commands.Cog.listener()
@@ -118,6 +122,7 @@ class TipProcessingCog(disc_commands.Cog):
       # Add new failed tip images to the channel's pile.
       if failed_urls:
          self._failed_urls[message.channel.name].extend(failed_urls)
+         simple_saver.save_key(self.FAILED_URLS_SAVE_KEY, self._failed_urls)
       # Post reply and react to message.
       embed = self._get_embed_for_reply(tips, failed_urls, message.guild)
       emoji = self._get_err_reaction_emoji() if failed_urls else self._get_reaction_emoji()
