@@ -1,3 +1,4 @@
+libgl1-mesa-glx
 # ppa:deadsnakes/ppa
 python3.9
 python3.9-venv
