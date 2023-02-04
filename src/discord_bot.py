@@ -77,7 +77,7 @@ class TipProcessingCog(disc_commands.Cog):
       self._history_messages_limit = history_messages_limit
       self._failed_urls_per_page = failed_urls_per_page
       self._failed_urls = simple_saver.load_key(
-         self.FAILED_URLS_SAVE_KEY, {channel: [] for channel in allowed_channels})
+         self.FAILED_URLS_SAVE_KEY, {})
       self._tip_recognizer = TipRecognizer()
       self._sheet_updater = StonkSheetUpdater()
 
@@ -86,14 +86,17 @@ class TipProcessingCog(disc_commands.Cog):
       if not self._should_respond_to_command(ctx):
          return
       channel_name = ctx.channel.name
-      content = FailedURLsPages(self._failed_urls[channel_name], self._failed_urls_per_page)
-      self._failed_urls[channel_name].clear()
+      guild_id = ctx.guild.id
+      content = FailedURLsPages(self._failed_urls[guild_id][channel_name], self._failed_urls_per_page)
+      self._failed_urls[guild_id][channel_name].clear()
       simple_saver.save_key(self.FAILED_URLS_SAVE_KEY, self._failed_urls)
       await PageNavigator(ctx, content.get_pages(), timeout=1800).run()
 
    @disc_commands.Cog.listener()
    async def on_ready(self) -> None:
       for guild in self.bot.guilds:
+         if guild.id not in self._failed_urls:
+            self._failed_urls[guild.id] = {channel: [] for channel in self._allowed_channels}
          for channel in guild.text_channels:
             if channel.name in self._allowed_channels:
                async for message in channel.history(limit=self._history_messages_limit):
@@ -121,7 +124,7 @@ class TipProcessingCog(disc_commands.Cog):
          self._sheet_updater.update_sheet(tip)
       # Add new failed tip images to the channel's pile.
       if failed_urls:
-         self._failed_urls[message.channel.name].extend(failed_urls)
+         self._failed_urls[message.guild.id][message.channel.name].extend(failed_urls)
          simple_saver.save_key(self.FAILED_URLS_SAVE_KEY, self._failed_urls)
       # Post reply and react to message.
       embed = self._get_embed_for_reply(tips, failed_urls, message.guild)
