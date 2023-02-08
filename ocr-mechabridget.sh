@@ -13,4 +13,4 @@ fi
 CURRENT_VERSION="$(cat "${DOT_VERSION}")"
 
 source "${VENV_DIR}/bin/activate"
-python "${SRC_DIR}/main.py"
+python "${SRC_DIR}/main.py" "$@"

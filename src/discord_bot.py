@@ -1,6 +1,7 @@
 import asyncio
 import requests
 import logging
+import argparse
 from typing import Optional, Union
 
 import numpy
@@ -63,11 +64,14 @@ class TipProcessingCog(disc_commands.Cog):
    DEFAULT_ERR_REACTION_EMOJI = '❌'
    EMBED_COLOR = discord.Color.blue()
 
-   def __init__(self, bot: disc_commands.Bot, log: logging.Logger, allowed_channels: list[str],
+   def __init__(self, bot: disc_commands.Bot, log: logging.Logger, prod_mode: bool,
+                prod_privileged_guilds: list[int], allowed_channels: list[str],
                 mention_roles: list[str], reaction_emoji: int, err_reaction_emoji: int,
                 history_messages_limit: int, failed_urls_per_page: int) -> None:
       self.bot = bot
       self._log = log
+      self._prod_mode = prod_mode
+      self._prod_privileged_guilds = prod_privileged_guilds
       self._allowed_channels = allowed_channels
       self._mention_roles = mention_roles
       self._reaction_emoji = reaction_emoji
@@ -119,9 +123,10 @@ class TipProcessingCog(disc_commands.Cog):
       if (len(tips) + len(failed_urls)) == 0:
          # Nothing to do.
          return
-      # Add new tips to stonk sheet.
-      for tip in tips:
-         self._sheet_updater.update_sheet(tip)
+      # (Sensitive) Add new tips to stonk sheet.
+      if self._should_perform_sensitive_actions(message.guild):
+         for tip in tips:
+            self._sheet_updater.update_sheet(tip)
       # Add new failed tip images to the channel's pile.
       if failed_urls:
          self._failed_urls[message.guild.id][message.channel.name].extend(failed_urls)
@@ -131,6 +136,9 @@ class TipProcessingCog(disc_commands.Cog):
       emoji = self._get_err_reaction_emoji() if failed_urls else self._get_reaction_emoji()
       await message.reply(embed=embed)
       await message.add_reaction(emoji)
+
+   def _should_perform_sensitive_actions(self, guild: discord.Guild) -> bool:
+      return (not self._prod_mode) or (guild.id in self._prod_privileged_guilds)
 
    def _should_respond_to_command(self, ctx: disc_commands.Context) -> bool:
       if ctx.channel.name not in self._allowed_channels:
@@ -226,8 +234,9 @@ class TipProcessingCog(disc_commands.Cog):
 class DiscordBot(object):
    CONFIG_SECTION = 'discord-bot'
 
-   def __init__(self) -> None:
+   def __init__(self, args: argparse.Namespace) -> None:
       self._setup_logging()
+      self._prod_mode = args.prod_mode
       asyncio.get_event_loop().run_until_complete(self._setup_discord_bot())
 
    def run(self) -> None:
@@ -249,6 +258,8 @@ class DiscordBot(object):
          command_prefix=config.get(self.CONFIG_SECTION, 'command_prefix'),
          intents=intents)
       # Setup TipProcessingCog.
+      prod_privileged_guilds = BasicUtils.get_int_list_from_csv(
+         config.get(self.CONFIG_SECTION, 'prod_privileged_guilds'))
       tip_posting_channels = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'tip_posting_channels'))
       tip_mention_roles = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'failed_tip_mention_roles'))
       tip_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_reaction_emoji')
@@ -256,5 +267,5 @@ class DiscordBot(object):
       history_messages_limit = config.getint(self.CONFIG_SECTION, 'history_messages_limit')
       failed_urls_per_page = config.getint(self.CONFIG_SECTION, 'failed_urls_per_page')
       await self._bot.add_cog(TipProcessingCog(
-         self._bot, self._log, tip_posting_channels, tip_mention_roles, tip_reaction_emoji, tip_err_reaction_emoji,
-         history_messages_limit, failed_urls_per_page))
+         self._bot, self._log, self._prod_mode, prod_privileged_guilds, tip_posting_channels, tip_mention_roles,
+         tip_reaction_emoji, tip_err_reaction_emoji, history_messages_limit, failed_urls_per_page))
