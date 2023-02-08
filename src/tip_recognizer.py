@@ -44,18 +44,20 @@ class Tip(object):
 class TipRecognizer(object):
    CONFIG_SECTION = 'tip-recognizer'
    SEARCH_KEYWORDS = (
-      (HeroTown.CELINE, ['Celine', 'Atelier', '席琳']),
-      (HeroTown.CHOCOLAT, ['Chocolat', 'Bakery', '修可兒拉']),
-      (HeroTown.FERGUS, ['Fergus', 'Anvil', '普勾斯']),
-      (HeroTown.LEDNAS, ['Lednas', 'Association', '青年會']),
-      (HeroTown.LENNY, ['Lenny', 'Orchard', '果樹園'])
+      (HeroTown.CELINE, ['Celine', 'Atelier', '席琳', '谢琳', '工作室']),
+      (HeroTown.CHOCOLAT, ['Chocolat', 'Bakery', '修可兒拉', '巧克莉', '面包店']),
+      (HeroTown.FERGUS, ['Fergus', 'Anvil', '普勾斯', '普格斯', '铁匠']),
+      (HeroTown.LEDNAS, ['Lednas', 'Association', '青年會', '蕾德那斯', '英雄城青年组织']),
+      (HeroTown.LENNY, ['Lenny', 'Orchard', '果樹園', '蕾妮', '果树园'])
    )
    CURR_TURN_REGEX = re.compile(r'\ATURN (?P<turn_number>\d+)')
    TARGET_TURN_REGEX_EN = re.compile(r'Turn (?P<turn_number>\d+)')
    TARGET_TURN_REGEX_TRA_CN = re.compile(r'(?P<turn_number>\d+)回合')
+   TARGET_TURN_REGEX_SIM_CN = re.compile(r'(?P<turn_number>\d+)回合')
    PRICE_CHANGE_REGEX_EN = re.compile(r'approximately (?P<price_change>-?\d+)')
    PRICE_CHANGE_REGEX_TRA_CN = re.compile(r'約(?P<price_change>-?\d+)')
-   PRICE_NO_CHANGE_KEYWORDS = ['remain stable', '會跟現在一樣']
+   PRICE_CHANGE_REGEX_SIM_CN = re.compile(r'约(?P<price_change>-?\d+)')
+   PRICE_NO_CHANGE_KEYWORDS = ['remain stable', '會跟現在一樣', '维持不变']
 
    def __init__(self) -> None:
       self._setup_logging()
@@ -153,8 +155,8 @@ class TipRecognizer(object):
          raise TipParsingError('Unknown current turn for tip, match="{}", tip="{}"'.format(curr_turn_str, tip_text))
 
    def _get_target_turn(self, tip_text: str) -> int:
-      # TODO: Add RegEx patterns for simplified-CN and KR.
-      for pattern in (self.TARGET_TURN_REGEX_EN, self.TARGET_TURN_REGEX_TRA_CN):
+      # TODO: Add RegEx patterns for KR.
+      for pattern in (self.TARGET_TURN_REGEX_EN, self.TARGET_TURN_REGEX_TRA_CN, self.TARGET_TURN_REGEX_SIM_CN):
          re_match = pattern.search(tip_text)
          if not re_match:
             continue
@@ -168,12 +170,12 @@ class TipRecognizer(object):
       raise TipParsingError('Unknown target turn for tip, tip="{}"'.format(tip_text))
 
    def _get_price_change(self, tip_text: str) -> int:
-      # TODO: Add RegEx patterns for simplified-CN and KR.
+      # TODO: Add RegEx patterns for KR.
       for keyword in self.PRICE_NO_CHANGE_KEYWORDS:
          if keyword in tip_text:
             self._log.debug('No price change for tip, keyword="{}", tip="{}"'.format(keyword, tip_text))
             return 0
-      for pattern in (self.PRICE_CHANGE_REGEX_EN, self.PRICE_CHANGE_REGEX_TRA_CN):
+      for pattern in (self.PRICE_CHANGE_REGEX_EN, self.PRICE_CHANGE_REGEX_TRA_CN, self.PRICE_CHANGE_REGEX_SIM_CN):
          re_match = pattern.search(tip_text)
          if not re_match:
             continue
