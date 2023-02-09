@@ -1,7 +1,6 @@
 import asyncio
 import requests
 import logging
-import argparse
 from typing import Optional, Union
 
 import numpy
@@ -234,9 +233,9 @@ class TipProcessingCog(disc_commands.Cog):
 class DiscordBot(object):
    CONFIG_SECTION = 'discord-bot'
 
-   def __init__(self, args: argparse.Namespace) -> None:
+   def __init__(self) -> None:
       self._setup_logging()
-      self._prod_mode = args.prod_mode
+      self._prod_mode = config.getboolean(self.CONFIG_SECTION, 'prod_mode')
       asyncio.get_event_loop().run_until_complete(self._setup_discord_bot())
 
    def run(self) -> None:
