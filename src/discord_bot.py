@@ -65,13 +65,15 @@ class TipProcessingCog(disc_commands.Cog):
 
    def __init__(self, bot: disc_commands.Bot, log: logging.Logger, prod_mode: bool,
                 prod_privileged_guilds: list[int], allowed_channels: list[str],
-                mention_roles: list[str], reaction_emoji: int, err_reaction_emoji: int,
-                mention_author: bool, history_messages_limit: int, failed_urls_per_page: int) -> None:
+                should_mention_roles: bool, mention_roles: list[str], reaction_emoji: int,
+                err_reaction_emoji: int, mention_author: bool, history_messages_limit: int,
+                failed_urls_per_page: int) -> None:
       self.bot = bot
       self._log = log
       self._prod_mode = prod_mode
       self._prod_privileged_guilds = prod_privileged_guilds
       self._allowed_channels = allowed_channels
+      self._should_mention_roles = should_mention_roles
       self._mention_roles = mention_roles
       self._reaction_emoji = reaction_emoji
       self._err_reaction_emoji = err_reaction_emoji
@@ -206,7 +208,8 @@ class TipProcessingCog(disc_commands.Cog):
       if failed_urls:
          lines = ['Cannot read <{}>'.format(url) for url in failed_urls]
          lines.append('')  # Separation line.
-         lines.append(''.join([role.mention for role in self._get_mention_roles(guild)]))
+         if self._should_mention_roles:
+            lines.append(''.join([role.mention for role in self._get_mention_roles(guild)]))
          embed.add_field(name='FAILED', value='\n'.join(lines), inline=False)
       return embed
 
@@ -261,6 +264,7 @@ class DiscordBot(object):
       prod_privileged_guilds = BasicUtils.get_int_list_from_csv(
          config.get(self.CONFIG_SECTION, 'prod_privileged_guilds'))
       tip_posting_channels = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'tip_posting_channels'))
+      should_mention_roles = config.getboolean(self.CONFIG_SECTION, 'should_mention_roles')
       tip_mention_roles = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'failed_tip_mention_roles'))
       tip_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_reaction_emoji')
       tip_err_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_err_reaction_emoji')
@@ -268,5 +272,6 @@ class DiscordBot(object):
       history_messages_limit = config.getint(self.CONFIG_SECTION, 'history_messages_limit')
       failed_urls_per_page = config.getint(self.CONFIG_SECTION, 'failed_urls_per_page')
       await self._bot.add_cog(TipProcessingCog(
-         self._bot, self._log, self._prod_mode, prod_privileged_guilds, tip_posting_channels, tip_mention_roles,
-         tip_reaction_emoji, tip_err_reaction_emoji, mention_author, history_messages_limit, failed_urls_per_page))
+         self._bot, self._log, self._prod_mode, prod_privileged_guilds, tip_posting_channels,
+         should_mention_roles, tip_mention_roles, tip_reaction_emoji, tip_err_reaction_emoji,
+         mention_author, history_messages_limit, failed_urls_per_page))
