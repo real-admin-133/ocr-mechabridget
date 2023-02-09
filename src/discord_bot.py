@@ -66,7 +66,7 @@ class TipProcessingCog(disc_commands.Cog):
    def __init__(self, bot: disc_commands.Bot, log: logging.Logger, prod_mode: bool,
                 prod_privileged_guilds: list[int], allowed_channels: list[str],
                 mention_roles: list[str], reaction_emoji: int, err_reaction_emoji: int,
-                history_messages_limit: int, failed_urls_per_page: int) -> None:
+                mention_author: bool, history_messages_limit: int, failed_urls_per_page: int) -> None:
       self.bot = bot
       self._log = log
       self._prod_mode = prod_mode
@@ -77,6 +77,7 @@ class TipProcessingCog(disc_commands.Cog):
       self._err_reaction_emoji = err_reaction_emoji
       self._cached_reaction_emoji = None
       self._cached_err_reaction_emoji = None
+      self._mention_author = mention_author
       self._history_messages_limit = history_messages_limit
       self._failed_urls_per_page = failed_urls_per_page
       self._failed_urls = simple_saver.load_key(
@@ -133,7 +134,7 @@ class TipProcessingCog(disc_commands.Cog):
       # Post reply and react to message.
       embed = self._get_embed_for_reply(tips, failed_urls, message.guild)
       emoji = self._get_err_reaction_emoji() if failed_urls else self._get_reaction_emoji()
-      await message.reply(embed=embed)
+      await message.reply(embed=embed, mention_author=self._mention_author)
       await message.add_reaction(emoji)
 
    def _should_perform_sensitive_actions(self, guild: discord.Guild) -> bool:
@@ -263,8 +264,9 @@ class DiscordBot(object):
       tip_mention_roles = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'failed_tip_mention_roles'))
       tip_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_reaction_emoji')
       tip_err_reaction_emoji = config.getint(self.CONFIG_SECTION, 'tip_err_reaction_emoji')
+      mention_author = config.getboolean(self.CONFIG_SECTION, 'mention_author')
       history_messages_limit = config.getint(self.CONFIG_SECTION, 'history_messages_limit')
       failed_urls_per_page = config.getint(self.CONFIG_SECTION, 'failed_urls_per_page')
       await self._bot.add_cog(TipProcessingCog(
          self._bot, self._log, self._prod_mode, prod_privileged_guilds, tip_posting_channels, tip_mention_roles,
-         tip_reaction_emoji, tip_err_reaction_emoji, history_messages_limit, failed_urls_per_page))
+         tip_reaction_emoji, tip_err_reaction_emoji, mention_author, history_messages_limit, failed_urls_per_page))
