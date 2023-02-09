@@ -40,12 +40,16 @@ class StonkSheetUpdater(object):
 
    def __init__(self) -> None:
       self._setup_logging()
+      self._incl_change_update = config.getboolean(self.CONFIG_SECTION, 'incl_change_update')
+      self._incl_action_update = config.getboolean(self.CONFIG_SECTION, 'incl_action_update')
       self._setup_stonk_sheet()
 
    def update_sheet(self, tip: Tip) -> None:
       self._update_price(tip)
-      self._update_change(tip)
-      self._update_action(tip)
+      if self._incl_change_update:
+         self._update_change(tip)
+      if self._incl_action_update:
+         self._update_action(tip)
 
    def _update_price(self, tip: Tip) -> None:
       col = self.PRICE_COLUMNS[tip.hero_town.value]
@@ -103,7 +107,11 @@ class StonkSheetUpdater(object):
          self._price_cell_format = json.load(file)
       with open(self.CHANGE_CELL_FORMAT, 'r') as file:
          self._change_cell_format = json.load(file)
-      # Setup conditional format rules.
+      if self._incl_change_update:
+         # Setup conditional format rules for change columns.
+         self._setup_change_format_rules()
+
+   def _setup_change_format_rules(self):
       rules = gsf.get_conditional_format_rules(self._sheet)
       rules.clear()
       cell_ranges = []
