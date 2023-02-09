@@ -55,8 +55,10 @@ class TipRecognizer(object):
    TARGET_TURN_REGEX_TRA_CN = re.compile(r'(?P<turn_number>\d+)回合')
    TARGET_TURN_REGEX_SIM_CN = re.compile(r'(?P<turn_number>\d+)回合')
    TARGET_TURN_REGEX_KR = re.compile(r'(?P<turn_number>\d+)턴의')
-   PRICE_CHANGE_REGEX_EN = re.compile(r'approximately (?P<price_change>-?\d+)')
-   PRICE_CHANGE_REGEX_TRA_CN = re.compile(r'約(?P<price_change>-?\d+)')
+   PRICE_INC_REGEX_EN = re.compile(r'rise by approximately (?P<price_change>\d+)')
+   PRICE_DEC_REGEX_EN = re.compile(r'fall by approximately (?P<price_change>-\d+)')
+   PRICE_INC_REGEX_TRA_CN = re.compile(r'上升約(?P<price_change>\d+)。')
+   PRICE_DEC_REGEX_TRA_CN = re.compile(r'下滑約(?P<price_change>-\d+)。')
    PRICE_INC_REGEX_SIM_CN = re.compile(r'上升约(?P<price_change>\d+)。')
    PRICE_DEC_REGEX_SIM_CN = re.compile(r'下降约(?P<price_change>-\d+)。')
    PRICE_INC_REGEX_KR = re.compile(r'약 (?P<price_change>\d+) 상승')
@@ -178,8 +180,10 @@ class TipRecognizer(object):
          if keyword in tip_text:
             self._log.debug('No price change for tip, keyword="{}", tip="{}"'.format(keyword, tip_text))
             return 0
-      for pattern in (self.PRICE_CHANGE_REGEX_EN, self.PRICE_CHANGE_REGEX_TRA_CN, self.PRICE_INC_REGEX_SIM_CN,
-                      self.PRICE_DEC_REGEX_SIM_CN, self.PRICE_INC_REGEX_KR, self.PRICE_DEC_REGEX_KR):
+      for pattern in (self.PRICE_INC_REGEX_EN, self.PRICE_DEC_REGEX_EN,
+                      self.PRICE_INC_REGEX_TRA_CN, self.PRICE_DEC_REGEX_TRA_CN,
+                      self.PRICE_INC_REGEX_SIM_CN, self.PRICE_DEC_REGEX_SIM_CN,
+                      self.PRICE_INC_REGEX_KR, self.PRICE_DEC_REGEX_KR):
          re_match = pattern.search(tip_text)
          if not re_match:
             continue
