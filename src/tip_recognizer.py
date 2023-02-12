@@ -62,7 +62,7 @@ class TipRecognizer(object):
    PRICE_INC_REGEX_SIM_CN = re.compile(r'上升约(?P<price_change>\d+)。')
    PRICE_DEC_REGEX_SIM_CN = re.compile(r'下降约(?P<price_change>-\d+)。')
    PRICE_INC_REGEX_KR = re.compile(r'약 (?P<price_change>\d+) 상승')
-   PRICE_DEC_REGEX_KR = re.compile(r'약 (?P<price_change>-\d+) 하락')
+   PRICE_DEC_REGEX_KR = re.compile(r'약 (?P<price_change>-( )?\d+) 하락')
    PRICE_NO_CHANGE_KEYWORDS = ['remain stable', '會跟現在一樣', '维持不变', '변동없음']
 
    def __init__(self) -> None:
@@ -188,6 +188,9 @@ class TipRecognizer(object):
          if not re_match:
             continue
          price_change_str = re_match.group('price_change')
+         # Remove possible space between the minus sign and the price change number produced by some regexes.
+         if (pattern in (self.PRICE_DEC_REGEX_KR,)) and (' ' in price_change_str):
+            price_change_str = price_change_str.replace(' ', '')
          try:
             price_change = int(price_change_str)
             self._log.debug('Found price change for tip, price_change={}, tip="{}"'.format(price_change, tip_text))
