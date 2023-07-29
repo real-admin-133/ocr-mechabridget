@@ -13,7 +13,8 @@ class LoggingUtils(object):
 
    def get_logger(self, logger_name: str) -> logging.Logger:
       logger = logging.getLogger(logger_name)
-      logger.addHandler(self.handler)
+      if not logger.hasHandlers():
+         logger.addHandler(self.handler)
       return logger
 
 
