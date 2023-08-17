@@ -12,7 +12,9 @@ from config_loader import config
 from logging_utils import logger_factory
 from simple_data_saver import simple_saver
 from basic_utils import BasicUtils
+from shared_constants import HeroTown
 from tip_recognizer import Tip, TipRecognizer
+from stonk_sheet_querier import StonkSheetQuerier
 from stonk_sheet_updater import StonkSheetUpdater
 from discord_paginator import Page, PageGenerator, PageNavigator
 
@@ -234,6 +236,113 @@ class TipProcessingCog(disc_commands.Cog):
       return self._cached_err_reaction_emoji
 
 
+class SheetHelperCog(disc_commands.Cog):
+   EMBED_COLOR = discord.Color.dark_gray()
+
+   def __init__(self, bot: disc_commands.Bot, log: logging.Logger,
+                allowed_channels: list[str], mention_author: bool) -> None:
+      self.bot = bot
+      self._log = log
+      self._allowed_channels = allowed_channels
+      self._mention_author = mention_author
+      self._sheet_querier = StonkSheetQuerier()
+
+   @disc_commands.command()
+   async def sheet(self, ctx: disc_commands.Context) -> None:
+      if not self._should_respond_to_command(ctx):
+         return
+      await self._respond_to_command(ctx, self._sheet_querier.get_sheet_msg())
+
+   @disc_commands.command()
+   async def round(self, ctx: disc_commands.Context) -> None:
+      if not self._should_respond_to_command(ctx):
+         return
+      await self._respond_to_command(ctx, self._sheet_querier.get_current_turn_msg())
+
+   @disc_commands.command(aliases=['bb'])
+   async def bestbuy(self, ctx: disc_commands.Context) -> None:
+      if not self._should_respond_to_command(ctx):
+         return
+      await self._respond_to_command(ctx, self._sheet_querier.get_best_buy_msg())
+
+   @disc_commands.command(aliases=['tb', 'check'])
+   async def targetbuy(self, ctx: disc_commands.Context, *args) -> None:
+      if not self._should_respond_to_command(ctx):
+         return
+      if len(args) == 0:
+         error_msg = 'Command requires at least 1 argument. Accept positive numbers only.'
+         await self._respond_to_command(ctx, error_msg)
+         return
+
+      target_turns = []
+      invalid_args = []
+      for arg in args:
+         try:
+            target_turn = int(arg)
+            if target_turn > 0:
+               target_turns.append(target_turn)
+            else:
+               invalid_args.append(arg)
+         except ValueError:
+            invalid_args.append(arg)
+
+      contents = []
+      if invalid_args:
+         contents.append('Invalid argument(s): {}. Accept positive numbers only.'.format(
+            ', '.join(invalid_args)))
+      if target_turns:
+         contents.append(self._sheet_querier.get_target_buy_msg(target_turns))
+      await self._respond_to_command(ctx, '\n'.join(contents))
+
+   @disc_commands.command()
+   async def tips(self, ctx: disc_commands.Context, *args) -> None:
+      if not self._should_respond_to_command(ctx):
+         return
+
+      special_accepts = ['all']
+      option_accepts_dict = {e.value.lower(): e for e in HeroTown
+                             if e is not HeroTown.UNKNOWN}
+      option_accepts = list(option_accepts_dict.keys())
+      accepts = special_accepts + option_accepts
+      if len(args) == 0:
+         error_msg = 'Command requires at least 1 argument. Accept: {}.'.format(
+            ', '.join(accepts))
+         await self._respond_to_command(ctx, error_msg)
+         return
+
+      if 'all' in args:
+         unique_args = option_accepts
+      else:
+         unique_args = list(set(args))
+      stocks = []
+      invalid_args = []
+      for arg in unique_args:
+         if arg in option_accepts_dict:
+            stocks.append(option_accepts_dict[arg])
+         else:
+            invalid_args.append(arg)
+
+      contents = []
+      if invalid_args:
+         contents.append('Invalid argument(s): {}. Accept: {}.'.format(
+            ', '.join(invalid_args),
+            ', '.join(accepts)))
+      if stocks:
+         contents.append(self._sheet_querier.get_tips_msg(stocks))
+      await self._respond_to_command(ctx, '\n'.join(contents))
+
+   async def _respond_to_command(self, ctx: disc_commands.Context, content: str) -> None:
+      embed = discord.Embed(color=self.EMBED_COLOR)
+      embed.add_field(name='', value=content, inline=False)
+      await ctx.message.reply(embed=embed, mention_author=self._mention_author)
+
+   def _should_respond_to_command(self, ctx: disc_commands.Context) -> bool:
+      if ctx.channel.name not in self._allowed_channels:
+         # Ignore commands invoked from outside the allowed (tip-querying) channels.
+         return False
+      return True
+
+
 class DiscordBot(object):
    CONFIG_SECTION = 'discord-bot'
 
@@ -275,3 +384,7 @@ class DiscordBot(object):
          self._bot, self._log, self._prod_mode, prod_privileged_guilds, tip_posting_channels,
          should_mention_roles, tip_mention_roles, tip_reaction_emoji, tip_err_reaction_emoji,
          mention_author, history_messages_limit, failed_urls_per_page))
+      # Setup SheetHelperCog.
+      tip_querying_channels = BasicUtils.get_list_from_csv(config.get(self.CONFIG_SECTION, 'tip_querying_channels'))
+      await self._bot.add_cog(SheetHelperCog(
+         self._bot, self._log, tip_querying_channels, mention_author))

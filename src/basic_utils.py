@@ -1,5 +1,9 @@
+from typing import Union
+
 
 class BasicUtils(object):
+   Number = Union[int, float]
+
    @staticmethod
    def get_list_from_csv(csv_str: str) -> list[str]:
       return [x.strip() for x in csv_str.split(',') if x.strip()]
@@ -21,3 +25,11 @@ class BasicUtils(object):
       for i in range(0, len(src_list), chunk_size):
          output.append(src_list[i:i + chunk_size])
       return output
+
+   @staticmethod
+   def clamp_number(inp_num: Number, min_num: Number, max_num: Number) -> Number:
+      if inp_num < min_num:
+         return min_num
+      if inp_num > max_num:
+         return max_num
+      return inp_num

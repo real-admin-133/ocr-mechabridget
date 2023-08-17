@@ -2,47 +2,31 @@ import os
 import json
 import logging
 
-from google.oauth2 import service_account
-import gspread
 import gspread_formatting as gsf
 
 from config_loader import config
 from logging_utils import logger_factory
-from shared_constants import HeroTown
+from stonk_sheet_base import StonkSheetBase
 from tip_recognizer import Tip
 
 
-class StonkSheetUpdater(object):
+class StonkSheetUpdater(StonkSheetBase):
    CONFIG_SECTION = 'stonk-sheet-updater'
-   PRICE_COLUMNS = {
-      HeroTown.CELINE.value: config.get(CONFIG_SECTION, 'price_column_celine'),
-      HeroTown.CHOCOLAT.value: config.get(CONFIG_SECTION, 'price_column_chocolat'),
-      HeroTown.FERGUS.value: config.get(CONFIG_SECTION, 'price_column_fergus'),
-      HeroTown.LENNY.value: config.get(CONFIG_SECTION, 'price_column_lenny'),
-      HeroTown.LEDNAS.value: config.get(CONFIG_SECTION, 'price_column_lednas')
-   }
-   CHANGE_COLUMNS = {
-      HeroTown.CELINE.value: config.get(CONFIG_SECTION, 'change_column_celine'),
-      HeroTown.CHOCOLAT.value: config.get(CONFIG_SECTION, 'change_column_chocolat'),
-      HeroTown.FERGUS.value: config.get(CONFIG_SECTION, 'change_column_fergus'),
-      HeroTown.LENNY.value: config.get(CONFIG_SECTION, 'change_column_lenny'),
-      HeroTown.LEDNAS.value: config.get(CONFIG_SECTION, 'change_column_lednas')
-   }
-   ACTION_COLUMNS = {
-      HeroTown.CELINE.value: config.get(CONFIG_SECTION, 'action_column_celine'),
-      HeroTown.CHOCOLAT.value: config.get(CONFIG_SECTION, 'action_column_chocolat'),
-      HeroTown.FERGUS.value: config.get(CONFIG_SECTION, 'action_column_fergus'),
-      HeroTown.LENNY.value: config.get(CONFIG_SECTION, 'action_column_lenny'),
-      HeroTown.LEDNAS.value: config.get(CONFIG_SECTION, 'action_column_lednas')
-   }
    PRICE_CELL_FORMAT = os.path.join(os.environ['TEMPLATES_DIR'], 'price_cell_format.json')
    CHANGE_CELL_FORMAT = os.path.join(os.environ['TEMPLATES_DIR'], 'change_cell_format.json')
 
    def __init__(self) -> None:
       self._setup_logging()
+      self._setup_stonk_sheet()
       self._incl_change_update = config.getboolean(self.CONFIG_SECTION, 'incl_change_update')
       self._incl_action_update = config.getboolean(self.CONFIG_SECTION, 'incl_action_update')
-      self._setup_stonk_sheet()
+      with open(self.PRICE_CELL_FORMAT, 'r') as file:
+         self._price_cell_format = json.load(file)
+      with open(self.CHANGE_CELL_FORMAT, 'r') as file:
+         self._change_cell_format = json.load(file)
+      if self._incl_change_update:
+         # Setup conditional format rules for change columns.
+         self._setup_change_format_rules()
 
    def update_sheet(self, tip: Tip) -> None:
       self._update_price(tip)
@@ -91,33 +75,13 @@ class StonkSheetUpdater(object):
       self._log = logger_factory.get_logger('stonk-sheet-updater')
       self._log.setLevel(logging.INFO)
 
-   def _setup_stonk_sheet(self) -> None:
-      gsheets_credentials = service_account.Credentials.from_service_account_file(
-         filename=config.get(self.CONFIG_SECTION, 'gsheets_service_account_file'),
-         scopes=[
-            'https://www.googleapis.com/auth/drive.readonly',
-            'https://www.googleapis.com/auth/spreadsheets'
-         ]
-      )
-      gsheets_client = gspread.authorize(gsheets_credentials)
-      spreadsheet = gsheets_client.open_by_key(config.get(self.CONFIG_SECTION, 'spreadsheet_id'))
-      self._sheet = spreadsheet.worksheet(config.get(self.CONFIG_SECTION, 'sheet_name'))
-      self._starting_row = config.getint(self.CONFIG_SECTION, 'starting_row')
-      with open(self.PRICE_CELL_FORMAT, 'r') as file:
-         self._price_cell_format = json.load(file)
-      with open(self.CHANGE_CELL_FORMAT, 'r') as file:
-         self._change_cell_format = json.load(file)
-      if self._incl_change_update:
-         # Setup conditional format rules for change columns.
-         self._setup_change_format_rules()
-
    def _setup_change_format_rules(self):
       rules = gsf.get_conditional_format_rules(self._sheet)
       rules.clear()
       cell_ranges = []
       for _, col in self.CHANGE_COLUMNS.items():
          start_cell = self._get_turn_acell(col, 1)
-         end_cell = self._get_turn_acell(col, 200)
+         end_cell = self._get_turn_acell(col, self._max_turn)
          cell_range = '{}:{}'.format(start_cell, end_cell)
          cell_ranges.append(gsf.GridRange.from_a1_range(cell_range, self._sheet))
       inc_price_rule = gsf.ConditionalFormatRule(
@@ -145,12 +109,3 @@ class StonkSheetUpdater(object):
       rules.append(inc_price_rule)
       rules.append(dec_price_rule)
       rules.save()
-
-   def _get_fixed_row_turn_acell(self, col: str, turn: int) -> str:
-      return '{}${}'.format(col, self._get_row_number(turn))
-
-   def _get_turn_acell(self, col: str, turn: int) -> str:
-      return col + str(self._get_row_number(turn))
-
-   def _get_row_number(self, turn: int) -> int:
-      return turn + self._starting_row - 1

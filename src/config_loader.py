@@ -17,9 +17,10 @@ class ConfigLoader(object):
    REQUIRED_FIELDS = [
       'tip-recognizer.gvision_service_account_file',
       'discord-bot.auth_token',
-      'stonk-sheet-updater.gsheets_service_account_file',
-      'stonk-sheet-updater.spreadsheet_id',
-      'stonk-sheet-updater.sheet_name'
+      'stonk-sheet-base.gsheets_service_account_file',
+      'stonk-sheet-base.spreadsheet_id',
+      'stonk-sheet-base.sheet_name',
+      'stonk-sheet-querier.starting_time'
    ]
 
    def __init__(self) -> None:
