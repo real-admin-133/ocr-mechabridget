@@ -4,5 +4,14 @@
       "green": 0.9,
       "blue": 0.6
    },
+   "textFormat": {
+      "foregroundColor": {
+         "red": 0.0666,
+         "green": 0.3333,
+         "blue": 0.8
+      },
+      "bold": false,
+      "underline": true
+   },
    "horizontalAlignment": "CENTER"
 }
